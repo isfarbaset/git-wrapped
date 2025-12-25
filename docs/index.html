@@ -4233,6 +4233,79 @@ transform: scale(1.1);
 .heat-4 { background: var(--gh-green); color: #fff; }
 .heat-5 { background: var(--gh-green-light); color: #000; }
 
+.time-reveal-card {
+margin: 3rem auto;
+padding: 3rem 2rem;
+max-width: 500px;
+text-align: center;
+background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+border-radius: 24px;
+border: 1px solid rgba(163, 113, 247, 0.3);
+box-shadow: 0 0 60px rgba(163, 113, 247, 0.2),
+0 0 100px rgba(88, 166, 255, 0.1),
+inset 0 1px 0 rgba(255, 255, 255, 0.05);
+position: relative;
+overflow: hidden;
+}
+.time-reveal-card::before {
+content: '';
+position: absolute;
+top: -50%;
+left: -50%;
+width: 200%;
+height: 200%;
+background: radial-gradient(circle, rgba(163, 113, 247, 0.1) 0%, transparent 50%);
+animation: pulse-glow 4s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+0%, 100% { opacity: 0.5; transform: scale(1); }
+50% { opacity: 1; transform: scale(1.1); }
+}
+.reveal-label {
+font-size: 1rem;
+color: var(--gh-text-muted);
+text-transform: uppercase;
+letter-spacing: 4px;
+margin-bottom: 1rem;
+position: relative;
+}
+.reveal-emoji {
+font-size: 5rem;
+margin: 1rem 0;
+position: relative;
+animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+0%, 100% { transform: translateY(0); }
+50% { transform: translateY(-10px); }
+}
+.reveal-title {
+font-family: 'Bebas Neue', sans-serif;
+font-size: 4rem;
+letter-spacing: 6px;
+background: linear-gradient(135deg, var(--gh-purple), var(--gh-blue), var(--gh-green-light));
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+margin: 0.5rem 0;
+position: relative;
+}
+.reveal-subtitle {
+font-size: 1.2rem;
+color: var(--gh-purple);
+font-style: italic;
+margin: 0.5rem 0 1.5rem;
+position: relative;
+}
+.reveal-desc {
+font-size: 1rem;
+color: var(--gh-text-muted);
+line-height: 1.6;
+max-width: 400px;
+margin: 0 auto;
+position: relative;
+}
+
 .coding-time-badge {
 display: flex;
 align-items: center;
@@ -4488,11 +4561,11 @@ font-size: 1.8rem;
 <h2 class="section-header anchored">YOUR YEAR IN CODE</h2>
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="number">635</div>
+        <div class="number">636</div>
         <div class="label">Total Contributions</div>
     </div>
     <div class="stat-card blue">
-        <div class="number">300</div>
+        <div class="number">301</div>
         <div class="label">Commits</div>
     </div>
     <div class="stat-card purple">
@@ -4607,8 +4680,8 @@ font-size: 1.8rem;
             <div class="repo-info">
                 <div class="repo-name-bar">git-wrapped</div>
                 <div class="repo-progress">
-                    <div class="repo-progress-fill blue" style="width: 4.712041884816754%;">
-                        9 commits
+                    <div class="repo-progress-fill blue" style="width: 5.2356020942408374%;">
+                        10 commits
                     </div>
                 </div>
             </div>
@@ -4686,8 +4759,8 @@ font-size: 1.8rem;
     </div>
     
     <div class="month-bar">
-        <div class="value">74</div>
-        <div class="bar " style="height: 74.46540880503144px;"></div>
+        <div class="value">75</div>
+        <div class="bar " style="height: 75.47169811320755px;"></div>
         <div class="label">Dec</div>
     </div>
     </div><p style="text-align: center; color: var(--gh-blue); margin-top: 1rem;">Peak month: <strong>Oct</strong> with 159 contributions!</p>
@@ -4719,7 +4792,7 @@ font-size: 1.8rem;
     
         <div class="heatmap-row">
             <div class="heatmap-label">Thu</div>
-            <div class="heatmap-cell heat-4">86</div>
+            <div class="heatmap-cell heat-4">87</div>
         </div>
     
         <div class="heatmap-row">
@@ -4741,6 +4814,13 @@ font-size: 1.8rem;
     </div>
 </div>
 <p style="text-align: center; color: var(--gh-green-light); margin-top: 1rem; font-size: 1.1rem;">You code most on <strong>Mons</strong> with 131 contributions!</p>
+<div class="time-reveal-card">
+    <div class="reveal-label">You&#39;re a...</div>
+    <div class="reveal-emoji">🦉</div>
+    <div class="reveal-title">NIGHT OWL</div>
+    <div class="reveal-subtitle">The moon is your coding companion</div>
+    <div class="reveal-desc">While the world sleeps, you&#39;re shipping features. Your best work happens when the stars come out.</div>
+</div>
 </div>
 </div>
 <div id="cell-languages" class="cell" data-execution_count="10">
@@ -4749,13 +4829,13 @@ font-size: 1.8rem;
             <div class="language-item">
                 <div class="language-dot" style="background: #DA5B0B;"></div>
                 <span class="language-name">Jupyter Notebook</span>
-                <span class="language-percent">72.9%</span>
+                <span class="language-percent">72.7%</span>
             </div>
             
             <div class="language-item">
                 <div class="language-dot" style="background: #663399;"></div>
                 <span class="language-name">CSS</span>
-                <span class="language-percent">14.7%</span>
+                <span class="language-percent">14.6%</span>
             </div>
             
             <div class="language-item">
@@ -4767,7 +4847,7 @@ font-size: 1.8rem;
             <div class="language-item">
                 <div class="language-dot" style="background: #3572A5;"></div>
                 <span class="language-name">Python</span>
-                <span class="language-percent">3.8%</span>
+                <span class="language-percent">4.1%</span>
             </div>
             
             <div class="language-item">
@@ -4784,7 +4864,7 @@ font-size: 1.8rem;
 <h2 class="section-header anchored">FUN FACTS</h2>
 <div class="fun-facts">
     <div class="fun-fact">
-        You mass-murdered approximately <span class="highlight">940</span> bugs this year
+        You mass-murdered approximately <span class="highlight">943</span> bugs this year
     </div>
     <div class="fun-fact">
         Your repositories collected <span class="highlight">6</span> stars
@@ -4793,10 +4873,10 @@ font-size: 1.8rem;
         Your code was forked <span class="highlight">2</span> times
     </div>
     <div class="fun-fact">
-        You wrote approximately <span class="highlight">15,000</span> lines of code
+        You wrote approximately <span class="highlight">15,050</span> lines of code
     </div>
     <div class="fun-fact">
-        That&#39;s about <span class="highlight">600</span> cups of coffee worth of coding
+        That&#39;s about <span class="highlight">602</span> cups of coffee worth of coding
     </div>
 </div>
 </div>

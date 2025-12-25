@@ -445,6 +445,89 @@ h1, h2, h3, h4, h5, h6, .display-heading {
 .heat-4 { background: var(--gh-green); color: #fff; }
 .heat-5 { background: var(--gh-green-light); color: #000; }
 
+/* Time Reveal Card - Spotify-style dramatic reveal */
+.time-reveal-card {
+  margin: 3rem auto;
+  padding: 3rem 2rem;
+  max-width: 500px;
+  text-align: center;
+  background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+  border-radius: 24px;
+  border: 1px solid rgba(163, 113, 247, 0.3);
+  box-shadow: 
+    0 0 60px rgba(163, 113, 247, 0.2),
+    0 0 100px rgba(88, 166, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.time-reveal-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(163, 113, 247, 0.1) 0%, transparent 50%);
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.reveal-label {
+  font-size: 1rem;
+  color: var(--gh-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.reveal-emoji {
+  font-size: 5rem;
+  margin: 1rem 0;
+  position: relative;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.reveal-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 4rem;
+  letter-spacing: 6px;
+  background: linear-gradient(135deg, var(--gh-purple), var(--gh-blue), var(--gh-green-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0.5rem 0;
+  position: relative;
+}
+
+.reveal-subtitle {
+  font-size: 1.2rem;
+  color: var(--gh-purple);
+  font-style: italic;
+  margin: 0.5rem 0 1.5rem;
+  position: relative;
+}
+
+.reveal-desc {
+  font-size: 1rem;
+  color: var(--gh-text-muted);
+  line-height: 1.6;
+  max-width: 400px;
+  margin: 0 auto;
+  position: relative;
+}
+
 /* Coding Time Badge */
 .coding-time-badge {
   display: flex;
