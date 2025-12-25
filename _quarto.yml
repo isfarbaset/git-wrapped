@@ -1,0 +1,17 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "GitHub Wrapped 2025"
+  navbar:
+    background: "#0d1117"
+    foreground: "#ffffff"
+
+format:
+  html:
+    theme: darkly
+    css: styles.css
+    toc: false
+    page-layout: full
+    embed-resources: true

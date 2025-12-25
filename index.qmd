@@ -1,0 +1,589 @@
+---
+title: "GitHub Wrapped 2025"
+format:
+  html:
+    page-layout: full
+execute:
+  echo: false
+  warning: false
+---
+
+```{python}
+#| label: setup
+import requests
+import os
+from datetime import datetime, timedelta
+from collections import defaultdict
+from IPython.display import display, HTML
+import json
+
+# Configuration - Set your GitHub username here
+GITHUB_USERNAME = "isfarbaset"  # Change this to your GitHub username
+YEAR = 2025
+
+# GitHub API base URL
+API_BASE = "https://api.github.com"
+
+# Optional: Set your GitHub token for higher rate limits
+# You can set this as an environment variable: export GITHUB_TOKEN="your_token"
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
+headers = {
+    "Accept": "application/vnd.github.v3+json",
+    "User-Agent": "GitHub-Wrapped-2025"
+}
+if GITHUB_TOKEN:
+    headers["Authorization"] = f"token {GITHUB_TOKEN}"
+
+def fetch_user_data(username):
+    """Fetch basic user information"""
+    response = requests.get(f"{API_BASE}/users/{username}", headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    return None
+
+def fetch_repos(username):
+    """Fetch all repositories for a user"""
+    repos = []
+    page = 1
+    while True:
+        response = requests.get(
+            f"{API_BASE}/users/{username}/repos",
+            headers=headers,
+            params={"per_page": 100, "page": page, "type": "all"}
+        )
+        if response.status_code != 200 or not response.json():
+            break
+        repos.extend(response.json())
+        if len(response.json()) < 100:
+            break
+        page += 1
+    return repos
+
+def fetch_events(username, max_pages=10):
+    """Fetch recent events for a user"""
+    events = []
+    for page in range(1, max_pages + 1):
+        response = requests.get(
+            f"{API_BASE}/users/{username}/events",
+            headers=headers,
+            params={"per_page": 100, "page": page}
+        )
+        if response.status_code != 200 or not response.json():
+            break
+        events.extend(response.json())
+    return events
+
+def fetch_contribution_data(username):
+    """Fetch contribution data using GitHub's GraphQL API"""
+    # For public API without token, we'll estimate from events
+    # With a token, you could use the GraphQL API for accurate contribution data
+    return None
+
+def calculate_stats(username, repos, events):
+    """Calculate various statistics from the data"""
+    stats = {
+        "total_commits": 0,
+        "total_prs": 0,
+        "total_prs_merged": 0,
+        "total_issues": 0,
+        "total_issues_closed": 0,
+        "repos_contributed": set(),
+        "languages": defaultdict(int),
+        "monthly_contributions": defaultdict(int),
+        "daily_contributions": defaultdict(int),
+        "hourly_contributions": defaultdict(int),
+        "repo_commits": defaultdict(int),
+        "stars_received": 0,
+        "forks_received": 0,
+        "current_streak": 0,
+        "longest_streak": 0,
+        "contribution_dates": set()
+    }
+    
+    # Calculate stats from repos
+    for repo in repos:
+        if repo.get("stargazers_count"):
+            stats["stars_received"] += repo["stargazers_count"]
+        if repo.get("forks_count"):
+            stats["forks_received"] += repo["forks_count"]
+        if repo.get("language"):
+            stats["languages"][repo["language"]] += 1
+    
+    # Calculate stats from events
+    for event in events:
+        event_date = datetime.strptime(event["created_at"], "%Y-%m-%dT%H:%M:%SZ")
+        
+        # Only count events from the target year
+        if event_date.year != YEAR:
+            continue
+            
+        month = event_date.strftime("%b")
+        day = event_date.strftime("%a")
+        hour = event_date.hour
+        date_str = event_date.strftime("%Y-%m-%d")
+        
+        if event["type"] == "PushEvent":
+            commits = len(event.get("payload", {}).get("commits", []))
+            stats["total_commits"] += commits
+            stats["monthly_contributions"][month] += commits
+            stats["daily_contributions"][day] += commits
+            stats["hourly_contributions"][hour] += commits
+            stats["contribution_dates"].add(date_str)
+            repo_name = event.get("repo", {}).get("name", "").split("/")[-1]
+            if repo_name:
+                stats["repo_commits"][repo_name] += commits
+                stats["repos_contributed"].add(repo_name)
+                
+        elif event["type"] == "PullRequestEvent":
+            action = event.get("payload", {}).get("action", "")
+            if action == "opened":
+                stats["total_prs"] += 1
+            elif action == "closed" and event.get("payload", {}).get("pull_request", {}).get("merged"):
+                stats["total_prs_merged"] += 1
+            stats["monthly_contributions"][month] += 1
+            stats["contribution_dates"].add(date_str)
+            repo_name = event.get("repo", {}).get("name", "").split("/")[-1]
+            if repo_name:
+                stats["repos_contributed"].add(repo_name)
+                
+        elif event["type"] == "IssuesEvent":
+            action = event.get("payload", {}).get("action", "")
+            if action == "opened":
+                stats["total_issues"] += 1
+            elif action == "closed":
+                stats["total_issues_closed"] += 1
+            stats["monthly_contributions"][month] += 1
+            stats["contribution_dates"].add(date_str)
+            
+        elif event["type"] in ["CreateEvent", "DeleteEvent", "ForkEvent", "WatchEvent"]:
+            stats["monthly_contributions"][month] += 1
+            stats["contribution_dates"].add(date_str)
+    
+    # Calculate streaks
+    if stats["contribution_dates"]:
+        sorted_dates = sorted([datetime.strptime(d, "%Y-%m-%d") for d in stats["contribution_dates"]])
+        
+        # Calculate longest streak
+        current_streak = 1
+        longest_streak = 1
+        
+        for i in range(1, len(sorted_dates)):
+            if (sorted_dates[i] - sorted_dates[i-1]).days == 1:
+                current_streak += 1
+                longest_streak = max(longest_streak, current_streak)
+            elif (sorted_dates[i] - sorted_dates[i-1]).days > 1:
+                current_streak = 1
+        
+        stats["longest_streak"] = longest_streak
+        
+        # Calculate current streak (from most recent date)
+        today = datetime.now()
+        current_streak = 0
+        check_date = sorted_dates[-1]
+        
+        while check_date.strftime("%Y-%m-%d") in stats["contribution_dates"]:
+            current_streak += 1
+            check_date = check_date - timedelta(days=1)
+        
+        stats["current_streak"] = current_streak
+    
+    stats["repos_contributed"] = len(stats["repos_contributed"])
+    
+    return stats
+
+def get_developer_personality(stats):
+    """Determine developer personality based on activity patterns"""
+    total_activity = stats["total_commits"] + stats["total_prs"] + stats["total_issues"]
+    
+    if stats["total_commits"] > 500:
+        return ("🚀", "Code Machine", "You shipped code like there's no tomorrow!")
+    elif stats["total_prs"] > 50:
+        return ("🤝", "Collaboration King", "You're all about teamwork and code reviews!")
+    elif stats["total_issues"] > 30:
+        return ("🐛", "Bug Hunter", "No bug is safe when you're around!")
+    elif stats["longest_streak"] > 30:
+        return ("🔥", "Streak Master", "Consistency is your middle name!")
+    elif len(stats["languages"]) > 5:
+        return ("🌈", "Polyglot Developer", "You speak many programming languages!")
+    elif stats["stars_received"] > 100:
+        return ("⭐", "Star Collector", "Your repos shine bright like diamonds!")
+    elif total_activity > 200:
+        return ("💪", "Dedicated Developer", "You put in the work, day after day!")
+    else:
+        return ("🌱", "Growing Developer", "Every commit is a step forward!")
+
+def get_peak_coding_time(hourly_data):
+    """Determine when the user codes most"""
+    if not hourly_data:
+        return "Unknown"
+    peak_hour = max(hourly_data, key=hourly_data.get)
+    if 5 <= peak_hour < 12:
+        return "Morning Coder ☀️"
+    elif 12 <= peak_hour < 17:
+        return "Afternoon Warrior 🌤️"
+    elif 17 <= peak_hour < 21:
+        return "Evening Hacker 🌅"
+    else:
+        return "Night Owl 🦉"
+
+# Fetch all data
+print("Fetching your GitHub data...")
+user_data = fetch_user_data(GITHUB_USERNAME)
+repos = fetch_repos(GITHUB_USERNAME)
+events = fetch_events(GITHUB_USERNAME)
+stats = calculate_stats(GITHUB_USERNAME, repos, events)
+personality = get_developer_personality(stats)
+coding_time = get_peak_coding_time(dict(stats["hourly_contributions"]))
+```
+
+```{python}
+#| label: hero
+# Hero Section
+avatar_url = user_data.get("avatar_url", "") if user_data else ""
+name = user_data.get("name", GITHUB_USERNAME) if user_data else GITHUB_USERNAME
+
+hero_html = f'''
+<div class="hero">
+    <h1>GITHUB WRAPPED<span class="year">{YEAR}</span></h1>
+    <p class="username">@{GITHUB_USERNAME}</p>
+</div>
+'''
+display(HTML(hero_html))
+```
+
+```{python}
+#| label: stats-grid
+# Stats Grid
+stats_html = f'''
+<h2 class="section-header">YOUR YEAR IN CODE</h2>
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="number">{stats["total_commits"]:,}</div>
+        <div class="label">Total Commits</div>
+    </div>
+    <div class="stat-card blue">
+        <div class="number">{stats["total_prs"]:,}</div>
+        <div class="label">Pull Requests</div>
+    </div>
+    <div class="stat-card purple">
+        <div class="number">{stats["total_issues"]:,}</div>
+        <div class="label">Issues Opened</div>
+    </div>
+    <div class="stat-card orange">
+        <div class="number">{stats["repos_contributed"]:,}</div>
+        <div class="label">Repos Contributed</div>
+    </div>
+</div>
+'''
+display(HTML(stats_html))
+```
+
+```{python}
+#| label: streak
+# Streak Section
+streak_html = f'''
+<h2 class="section-header">🔥 YOUR CODING STREAK</h2>
+<div class="streak-section">
+    <div class="streak-fire">🔥</div>
+    <div class="streak-number">{stats["longest_streak"]}</div>
+    <div class="streak-label">Day Longest Streak</div>
+    <p style="color: var(--gh-text-muted); margin-top: 1.5rem; font-size: 1.1rem;">
+        Your current streak: <span style="color: var(--gh-orange); font-weight: 600;">{stats["current_streak"]} days</span>
+    </p>
+    <p style="color: var(--gh-text-muted); margin-top: 0.5rem;">
+        You showed up and coded consistently. That's what separates the best from the rest! 💪
+    </p>
+</div>
+'''
+display(HTML(streak_html))
+```
+
+```{python}
+#| label: personality
+# Developer Personality Badge
+emoji, title, description = personality
+
+personality_html = f'''
+<h2 class="section-header">YOUR DEVELOPER PERSONALITY</h2>
+<div class="personality-badge">
+    <div class="emoji">{emoji}</div>
+    <div class="title">{title}</div>
+    <div class="description">{description}</div>
+</div>
+'''
+display(HTML(personality_html))
+```
+
+```{python}
+#| label: most-active-repo
+# Most Active Repo Trophy
+top_repos = sorted(stats["repo_commits"].items(), key=lambda x: x[1], reverse=True)
+if top_repos:
+    top_repo_name, top_repo_commits = top_repos[0]
+    
+    trophy_html = f'''
+    <h2 class="section-header">MOST ACTIVE REPOSITORY</h2>
+    <div class="trophy-showcase">
+        <div class="trophy">🏆</div>
+        <div class="repo-name">{top_repo_name}</div>
+        <div class="repo-stats">
+            <div class="repo-stat"><span>{top_repo_commits}</span> commits</div>
+        </div>
+        <p style="color: var(--gh-text-muted); margin-top: 1.5rem;">
+            This repo got most of your attention this year!
+        </p>
+    </div>
+    '''
+    display(HTML(trophy_html))
+```
+
+```{python}
+#| label: top-repos
+# Top 5 Repositories Bar Chart
+if top_repos:
+    top_5 = top_repos[:5]
+    max_commits = max(top_5[0][1], 1) if top_5 else 1
+    
+    bars_html = '<h2 class="section-header">TOP REPOSITORIES</h2><div class="repo-bars">'
+    
+    ranks = ["gold", "silver", "bronze", "other", "other"]
+    rank_labels = ["🥇", "🥈", "🥉", "4", "5"]
+    
+    for i, (repo_name, commits) in enumerate(top_5):
+        width = (commits / max_commits) * 100 if max_commits > 0 else 0
+        rank_class = ranks[i]
+        rank_label = rank_labels[i]
+        
+        bars_html += f'''
+        <div class="repo-bar-item">
+            <div class="repo-rank {rank_class}">{rank_label}</div>
+            <div class="repo-info">
+                <div class="repo-name-bar">{repo_name}</div>
+                <div class="repo-progress">
+                    <div class="repo-progress-fill {rank_class}" style="width: {width}%;">
+                        {commits} commits
+                    </div>
+                </div>
+            </div>
+        </div>
+        '''
+    
+    bars_html += '</div>'
+    display(HTML(bars_html))
+```
+
+```{python}
+#| label: monthly-chart
+# Monthly Contribution Chart
+months_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+monthly_data = {m: stats["monthly_contributions"].get(m, 0) for m in months_order}
+max_monthly = max(monthly_data.values()) if monthly_data.values() else 1
+peak_month = max(monthly_data, key=monthly_data.get) if monthly_data else "Jan"
+
+chart_html = '<h2 class="section-header">MONTHLY CONTRIBUTIONS</h2><div class="monthly-chart">'
+
+for month in months_order:
+    value = monthly_data[month]
+    height = (value / max_monthly) * 180 if max_monthly > 0 else 0
+    is_peak = "peak" if month == peak_month else ""
+    
+    chart_html += f'''
+    <div class="month-bar">
+        <div class="value">{value}</div>
+        <div class="bar {is_peak}" style="height: {max(height, 5)}px;"></div>
+        <div class="label">{month}</div>
+    </div>
+    '''
+
+chart_html += '</div>'
+if peak_month and monthly_data[peak_month] > 0:
+    chart_html += f'<p style="text-align: center; color: var(--gh-blue); margin-top: 1rem;">🎯 Peak month: <strong>{peak_month}</strong> with {monthly_data[peak_month]} contributions!</p>'
+
+display(HTML(chart_html))
+```
+
+```{python}
+#| label: heatmaps
+# Day of Week and Time of Day Heatmaps
+days_order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+daily_data = {d: stats["daily_contributions"].get(d, 0) for d in days_order}
+max_daily = max(daily_data.values()) if daily_data.values() else 1
+
+# Time periods
+time_periods = [
+    ("12am-6am", range(0, 6)),
+    ("6am-12pm", range(6, 12)),
+    ("12pm-6pm", range(12, 18)),
+    ("6pm-12am", range(18, 24))
+]
+
+hourly_data = dict(stats["hourly_contributions"])
+time_data = {}
+for label, hours in time_periods:
+    time_data[label] = sum(hourly_data.get(h, 0) for h in hours)
+max_time = max(time_data.values()) if time_data.values() else 1
+
+def get_heat_level(value, max_val):
+    if max_val == 0:
+        return 0
+    ratio = value / max_val
+    if ratio == 0:
+        return 0
+    elif ratio < 0.2:
+        return 1
+    elif ratio < 0.4:
+        return 2
+    elif ratio < 0.6:
+        return 3
+    elif ratio < 0.8:
+        return 4
+    else:
+        return 5
+
+heatmap_html = '''
+<h2 class="section-header">WHEN DO YOU CODE?</h2>
+<div class="heatmap-container">
+    <div class="heatmap">
+        <h3>Day of Week</h3>
+        <div class="heatmap-grid">
+'''
+
+for day in days_order:
+    value = daily_data[day]
+    heat = get_heat_level(value, max_daily)
+    heatmap_html += f'''
+        <div class="heatmap-row">
+            <div class="heatmap-label">{day}</div>
+            <div class="heatmap-cell heat-{heat}">{value}</div>
+        </div>
+    '''
+
+heatmap_html += '''
+        </div>
+    </div>
+    <div class="heatmap">
+        <h3>Time of Day</h3>
+        <div class="heatmap-grid">
+'''
+
+for label in ["12am-6am", "6am-12pm", "12pm-6pm", "6pm-12am"]:
+    value = time_data[label]
+    heat = get_heat_level(value, max_time)
+    heatmap_html += f'''
+        <div class="heatmap-row">
+            <div class="heatmap-label">{label}</div>
+            <div class="heatmap-cell heat-{heat}">{value}</div>
+        </div>
+    '''
+
+heatmap_html += '''
+        </div>
+    </div>
+</div>
+'''
+
+# Add coding time personality
+heatmap_html += f'<p style="text-align: center; color: var(--gh-purple); margin-top: 1rem; font-size: 1.2rem;">You\'re a <strong>{coding_time}</strong></p>'
+
+display(HTML(heatmap_html))
+```
+
+```{python}
+#| label: languages
+# Languages Breakdown
+language_colors = {
+    "Python": "#3572A5",
+    "JavaScript": "#f1e05a",
+    "TypeScript": "#2b7489",
+    "Java": "#b07219",
+    "C++": "#f34b7d",
+    "C": "#555555",
+    "C#": "#178600",
+    "Go": "#00ADD8",
+    "Rust": "#dea584",
+    "Ruby": "#701516",
+    "PHP": "#4F5D95",
+    "Swift": "#ffac45",
+    "Kotlin": "#F18E33",
+    "HTML": "#e34c26",
+    "CSS": "#563d7c",
+    "Shell": "#89e051",
+    "Jupyter Notebook": "#DA5B0B",
+    "Vue": "#41b883",
+    "React": "#61dafb",
+    "Dart": "#00B4AB"
+}
+
+if stats["languages"]:
+    total_lang = sum(stats["languages"].values())
+    sorted_langs = sorted(stats["languages"].items(), key=lambda x: x[1], reverse=True)[:8]
+    
+    lang_html = '<h2 class="section-header">LANGUAGES YOU SPOKE</h2><div class="languages-chart">'
+    
+    for lang, count in sorted_langs:
+        percent = (count / total_lang) * 100
+        color = language_colors.get(lang, "#8b949e")
+        
+        lang_html += f'''
+        <div class="language-item">
+            <div class="language-dot" style="background: {color};"></div>
+            <span class="language-name">{lang}</span>
+            <span class="language-percent">{percent:.1f}%</span>
+        </div>
+        '''
+    
+    lang_html += '</div>'
+    display(HTML(lang_html))
+```
+
+```{python}
+#| label: fun-facts
+# Fun Facts Section
+total_contributions = stats["total_commits"] + stats["total_prs"] + stats["total_issues"]
+lines_estimate = stats["total_commits"] * 50  # Rough estimate
+
+# Calculate bugs squashed (humorous estimate based on commits)
+bugs_squashed = stats["total_commits"] * 3 + stats["total_issues_closed"] * 10
+
+fun_facts_html = f'''
+<h2 class="section-header">FUN FACTS</h2>
+<div class="fun-facts">
+    <div class="fun-fact">
+        <span class="emoji">🐛</span> You mass-murdered approximately <span class="highlight">{bugs_squashed:,}</span> bugs this year
+    </div>
+    <div class="fun-fact">
+        <span class="emoji">⭐</span> Your repositories collected <span class="highlight">{stats["stars_received"]:,}</span> stars
+    </div>
+    <div class="fun-fact">
+        <span class="emoji">🍴</span> Your code was forked <span class="highlight">{stats["forks_received"]:,}</span> times
+    </div>
+    <div class="fun-fact">
+        <span class="emoji">📝</span> You wrote approximately <span class="highlight">{lines_estimate:,}</span> lines of code
+    </div>
+    <div class="fun-fact">
+        <span class="emoji">☕</span> That's about <span class="highlight">{stats["total_commits"] * 2:,}</span> cups of coffee worth of coding
+    </div>
+</div>
+'''
+display(HTML(fun_facts_html))
+```
+
+```{python}
+#| label: footer
+# Footer with tagline and GitHub button
+footer_html = '''
+<div class="footer">
+    <div class="tagline">Same time next year? 👋</div>
+    <a href="https://github.com" target="_blank" class="github-btn" title="Visit GitHub">
+        <svg viewBox="0 0 16 16">
+            <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+        </svg>
+    </a>
+    <p style="color: var(--gh-text-muted); margin-top: 1rem; font-size: 0.9rem;">
+        Made with ❤️ using Quarto & Python
+    </p>
+</div>
+'''
+display(HTML(footer_html))
+```
