@@ -4,6 +4,24 @@ A year-in-review insights report for your GitHub activity. See your stats, strea
 
 **Live Demo:** https://isfarbaset.github.io/github-insights/
 
+## Quick Start
+
+```bash
+# 1. Clone and enter the repo
+git clone https://github.com/isfarbaset/github-insights.git
+cd github-insights
+
+# 2. Install dependencies
+pip install requests
+
+# 3. Edit index.qmd and change GITHUB_USERNAME to your username
+
+# 4. Render with your GitHub token
+GITHUB_TOKEN="your_token_here" quarto render
+
+# 5. Your report is in docs/index.html - open it or deploy to GitHub Pages
+```
+
 ## Features
 
 - **Stats Overview**: Total commits, PRs, issues, and repositories contributed to
@@ -20,8 +38,14 @@ A year-in-review insights report for your GitHub activity. See your stats, strea
 ### Prerequisites
 
 - Python 3.8+
-- Quarto CLI (https://quarto.org/docs/get-started/)
-- GitHub Personal Access Token (for accurate data via GraphQL API)
+- [Quarto CLI](https://quarto.org/docs/get-started/)
+  ```bash
+  # macOS
+  brew install quarto
+  
+  # Or download from https://quarto.org/docs/get-started/
+  ```
+- GitHub Personal Access Token
 
 ### Installation
 
@@ -36,15 +60,13 @@ A year-in-review insights report for your GitHub activity. See your stats, strea
    pip install requests
    ```
 
-3. Set up a GitHub Personal Access Token:
-   ```bash
-   export GITHUB_TOKEN="your_github_token_here"
-   ```
-   
-   To create a token: GitHub Settings > Developer Settings > Personal Access Tokens > Tokens (classic)
-   Required scope: `public_repo`
+3. Create a GitHub Personal Access Token:
+   - Go to GitHub → Settings → Developer Settings → Personal Access Tokens → [Tokens (classic)](https://github.com/settings/tokens)
+   - Click "Generate new token (classic)"
+   - Select scopes: `public_repo` and `read:user`
+   - Copy the token
 
-4. Edit `index.qmd` and change the `GITHUB_USERNAME` variable to your GitHub username:
+4. Edit `index.qmd` and change the `GITHUB_USERNAME` variable (line 21) to your GitHub username:
    ```python
    GITHUB_USERNAME = "your_username_here"
    ```
@@ -54,8 +76,7 @@ A year-in-review insights report for your GitHub activity. See your stats, strea
 To generate your GitHub Insights report:
 
 ```bash
-export GITHUB_TOKEN="your_token"
-quarto render index.qmd
+GITHUB_TOKEN="your_token_here" quarto render
 ```
 
 The output will be in the `docs/` folder, ready for GitHub Pages.
