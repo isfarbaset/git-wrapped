@@ -369,7 +369,7 @@ coding_time = get_peak_coding_time(dict(stats["hourly_contributions"]))
 hero_html = f'''
 <div class="hero">
     <h1>GITHUB INSIGHTS<span class="year">{YEAR}</span></h1>
-    <p class="username">@{GITHUB_USERNAME}</p>
+    <a href="https://github.com/{GITHUB_USERNAME}" target="_blank" class="username">@{GITHUB_USERNAME}</a>
 </div>
 '''
 display(HTML(hero_html))
