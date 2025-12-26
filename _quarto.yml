@@ -3,7 +3,7 @@ project:
   output-dir: docs
 
 website:
-  title: "GitHub Wrapped 2025"
+  title: "GitHub Insights 2025"
   navbar:
     background: "#0d1117"
     foreground: "#ffffff"
