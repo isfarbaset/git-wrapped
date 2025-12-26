@@ -1,8 +1,8 @@
-# GitHub Wrapped 2025
+# GitHub Insights 2025
 
-A Spotify Wrapped-style year-in-review for your GitHub activity. See your coding stats, streaks, top repositories, and more in a beautiful dark-themed visualization.
+A year-in-review insights report for your GitHub activity. See your stats, streaks, top repositories, and discover who you've been as a developer this past year.
 
-**Live Demo:** https://isfarbaset.github.io/git-wrapped/
+**Live Demo:** https://isfarbaset.github.io/github-insights/
 
 ## Features
 
@@ -27,8 +27,8 @@ A Spotify Wrapped-style year-in-review for your GitHub activity. See your coding
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/isfarbaset/git-wrapped.git
-   cd git-wrapped
+   git clone https://github.com/isfarbaset/github-insights.git
+   cd github-insights
    ```
 
 2. Install Python dependencies:
@@ -51,7 +51,7 @@ A Spotify Wrapped-style year-in-review for your GitHub activity. See your coding
 
 ### Render
 
-To generate your GitHub Wrapped:
+To generate your GitHub Insights report:
 
 ```bash
 export GITHUB_TOKEN="your_token"
@@ -65,7 +65,7 @@ The output will be in the `docs/` folder, ready for GitHub Pages.
 1. Push the `docs/` folder to your repository
 2. Go to your repo Settings > Pages
 3. Set source to "Deploy from a branch" and select `main` branch, `/docs` folder
-4. Your GitHub Wrapped will be live at `https://yourusername.github.io/git-wrapped/`
+4. Your GitHub Insights will be live at `https://yourusername.github.io/github-insights/`
 
 ## Customization
 
