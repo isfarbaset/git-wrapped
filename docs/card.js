@@ -144,7 +144,7 @@ async function fetchAllRepos(username) {
 
 async function fetchEvents(username) {
   let events = [];
-  const maxPages = getToken() ? 10 : 3;
+  const maxPages = getToken() ? 10 : 1;
   for (let page = 1; page <= maxPages; page++) {
     try {
       const batch = await fetchJSON(
@@ -185,26 +185,28 @@ async function fetchLifetimeData(username, repos) {
     repoCommits: {},
   };
 
-  // Search API — lifetime PR & Issue counts (parallel)
-  try {
-    const [prRes, prMergedRes, issueRes, issueClosedRes] = await Promise.all([
-      fetchJSON(`${API}/search/issues?q=author:${username}+type:pr+is:public&per_page=1`).catch(() => null),
-      fetchJSON(`${API}/search/issues?q=author:${username}+type:pr+is:merged+is:public&per_page=1`).catch(() => null),
-      fetchJSON(`${API}/search/issues?q=author:${username}+type:issue+is:public&per_page=1`).catch(() => null),
-      fetchJSON(`${API}/search/issues?q=author:${username}+type:issue+is:closed+is:public&per_page=1`).catch(() => null),
-    ]);
-    if (prRes) lifetime.totalPRs = prRes.total_count || 0;
-    if (prMergedRes) lifetime.totalPRsMerged = prMergedRes.total_count || 0;
-    if (issueRes) lifetime.totalIssues = issueRes.total_count || 0;
-    if (issueClosedRes) lifetime.totalIssuesClosed = issueClosedRes.total_count || 0;
-  } catch { /* keep zeros on failure */ }
+  // Search API — lifetime PR & Issue counts (only with token to save API calls)
+  if (getToken()) {
+    try {
+      const [prRes, prMergedRes, issueRes, issueClosedRes] = await Promise.all([
+        fetchJSON(`${API}/search/issues?q=author:${username}+type:pr+is:public&per_page=1`).catch(() => null),
+        fetchJSON(`${API}/search/issues?q=author:${username}+type:pr+is:merged+is:public&per_page=1`).catch(() => null),
+        fetchJSON(`${API}/search/issues?q=author:${username}+type:issue+is:public&per_page=1`).catch(() => null),
+        fetchJSON(`${API}/search/issues?q=author:${username}+type:issue+is:closed+is:public&per_page=1`).catch(() => null),
+      ]);
+      if (prRes) lifetime.totalPRs = prRes.total_count || 0;
+      if (prMergedRes) lifetime.totalPRsMerged = prMergedRes.total_count || 0;
+      if (issueRes) lifetime.totalIssues = issueRes.total_count || 0;
+      if (issueClosedRes) lifetime.totalIssuesClosed = issueClosedRes.total_count || 0;
+    } catch { /* keep zeros on failure */ }
+  }
 
   // Stats/Contributors API — lifetime commit totals + weekly history
   // This endpoint returns weekly commit data spanning each repo's full lifetime
   const owned = repos
     .filter(r => !r.fork)
     .sort((a, b) => new Date(b.pushed_at || 0) - new Date(a.pushed_at || 0))
-    .slice(0, getToken() ? 50 : 15);  // limit repos to reduce API calls without token
+    .slice(0, getToken() ? 50 : 5);  // limit repos to reduce API calls without token
 
   for (let i = 0; i < owned.length; i += 5) {
     const batch = owned.slice(i, i + 5);
