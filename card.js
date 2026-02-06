@@ -67,6 +67,29 @@ tokenToggle.addEventListener("click", () => {
   if (!tokenArea.hidden) tokenInput.focus();
 });
 
+/* ── Caching (localStorage, 1-hour TTL) ────────────────── */
+
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+function getCached(username) {
+  try {
+    const raw = localStorage.getItem(`ghi_cache_${username.toLowerCase()}`);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) {
+      localStorage.removeItem(`ghi_cache_${username.toLowerCase()}`);
+      return null;
+    }
+    return data;
+  } catch { return null; }
+}
+
+function setCache(username, data) {
+  try {
+    localStorage.setItem(`ghi_cache_${username.toLowerCase()}`, JSON.stringify({ ts: Date.now(), data }));
+  } catch { /* storage full, ignore */ }
+}
+
 /* ── Helpers ───────────────────────────────────────────── */
 
 function fmt(n) {
@@ -99,11 +122,23 @@ function setLoading(on) {
 
 /* ── API ───────────────────────────────────────────────── */
 
+/** Graceful fetch — returns null on rate-limit / error (non-critical endpoints) */
 async function fetchJSON(url) {
   const res = await fetch(url, { headers: getHeaders() });
   if (!res.ok) {
+    if (res.status === 404) return null;
+    if (res.status === 403 || res.status === 429) return null; // rate limited — degrade gracefully
+    return null;
+  }
+  return res.json();
+}
+
+/** Strict fetch — throws on error (used only for the user profile endpoint) */
+async function fetchJSONStrict(url) {
+  const res = await fetch(url, { headers: getHeaders() });
+  if (!res.ok) {
     if (res.status === 404) throw new Error("User not found");
-    if (res.status === 403) {
+    if (res.status === 403 || res.status === 429) {
       const token = getToken();
       throw new Error(token
         ? "API rate limit exceeded even with token — try again shortly"
@@ -112,6 +147,16 @@ async function fetchJSON(url) {
     throw new Error(`GitHub API error (${res.status})`);
   }
   return res.json();
+}
+
+/** Check remaining rate limit (this endpoint is free and doesn't count) */
+async function checkRateLimit() {
+  try {
+    const res = await fetch(`${API}/rate_limit`, { headers: getHeaders() });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.rate; // { limit, remaining, reset }
+  } catch { return null; }
 }
 
 /** Fetch with retry — handles 202 "computing" from stats endpoints */
@@ -135,6 +180,7 @@ async function fetchAllRepos(username) {
     const batch = await fetchJSON(
       `${API}/users/${username}/repos?per_page=100&page=${page}&type=owner&sort=updated`
     );
+    if (!batch || !Array.isArray(batch)) break; // rate limited or error
     repos = repos.concat(batch);
     if (batch.length < 100) break;
     page++;
@@ -150,7 +196,7 @@ async function fetchEvents(username) {
       const batch = await fetchJSON(
         `${API}/users/${username}/events/public?per_page=100&page=${page}`
       );
-      if (!batch.length) break;
+      if (!batch || !Array.isArray(batch) || !batch.length) break;
       events = events.concat(batch);
       if (batch.length < 100) break;
     } catch { break; }
@@ -668,8 +714,48 @@ form.addEventListener("submit", async (e) => {
   errorMsg.hidden = true;
   setLoading(true);
   try {
-    const [user, repos, events, dailyContribs] = await Promise.all([
-      fetchJSON(`${API}/users/${username}`),
+    // 1. Check cache first
+    const cached = getCached(username);
+    if (cached) {
+      renderCard(cached.user, cached.repos, cached.stats);
+      placeholder.hidden = true;
+      cardWrapper.hidden = false;
+      cardActions.hidden = false;
+      showToast("⚡ Loaded from cache (refreshes every hour)");
+      return;
+    }
+
+    // 2. Pre-check rate limit (free call)
+    const rateLimit = await checkRateLimit();
+    if (rateLimit && rateLimit.remaining < 3 && !getToken()) {
+      // Not enough calls left — fetch only the free contribution calendar
+      const dailyContribs = await fetchDailyContributions(username);
+      if (!dailyContribs) {
+        showError("API rate limit exceeded — add a GitHub token below, or wait an hour.");
+        return;
+      }
+      // Build a minimal card from the contribution calendar only
+      const userRes = await fetch(`${API}/users/${username}`, { headers: getHeaders() });
+      if (!userRes.ok) {
+        showError("API rate limit exceeded — add a GitHub token below, or wait an hour.");
+        return;
+      }
+      const user = await userRes.json();
+      const emptyLifetime = { totalPRs: 0, totalPRsMerged: 0, totalIssues: 0, totalIssuesClosed: 0, totalCommits: 0, repoCommits: {} };
+      const stats = computeStats([], [], user, emptyLifetime, dailyContribs);
+      renderCard(user, [], stats);
+      placeholder.hidden = true;
+      cardWrapper.hidden = false;
+      cardActions.hidden = false;
+      showToast("⚠️ Rate limited — showing partial data. Add a token for full stats.");
+      return;
+    }
+
+    // 3. Full fetch (user endpoint uses strict version — must succeed)
+    const user = await fetchJSONStrict(`${API}/users/${username}`);
+
+    // Other endpoints degrade gracefully
+    const [repos, events, dailyContribs] = await Promise.all([
       fetchAllRepos(username),
       fetchEvents(username),
       fetchDailyContributions(username),
@@ -677,6 +763,10 @@ form.addEventListener("submit", async (e) => {
     const lifetime = await fetchLifetimeData(username, repos);
     const stats = computeStats(events, repos, user, lifetime, dailyContribs);
     renderCard(user, repos, stats);
+
+    // Cache the result
+    setCache(username, { user, repos, stats });
+
     placeholder.hidden = true;
     cardWrapper.hidden = false;
     cardActions.hidden = false;
