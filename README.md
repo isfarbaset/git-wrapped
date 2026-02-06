@@ -1,124 +1,70 @@
-# GitHub Insights 2025
+# GitHub Insights
 
-A year-in-review insights report for your GitHub activity. See your stats, streaks, top repositories, and discover who you've been as a developer this past year.
+Generate your own GitHub stats card to showcase anywhere — LinkedIn, Instagram, your portfolio & more. No tokens, no sign-ups. Just enter a username and download a beautiful PNG.
 
-**Live Demo:** https://isfarbaset.github.io/github-insights/
-
-## Quick Start
-
-```bash
-# 1. Clone and enter the repo
-git clone https://github.com/isfarbaset/github-insights.git
-cd github-insights
-
-# 2. Install dependencies
-pip install requests
-
-# 3. Edit index.qmd and change GITHUB_USERNAME to your username
-
-# 4. Render with your GitHub token
-GITHUB_TOKEN="your_token_here" quarto render
-
-# 5. Your report is in docs/index.html - open it or deploy to GitHub Pages
-```
+**Live:** [isfarbaset.github.io/github-insights](https://isfarbaset.github.io/github-insights/)
 
 ## Features
 
-- **Stats Overview**: Total commits, PRs, issues, and repositories contributed to
-- **Streak Tracking**: See your longest and current coding streaks
-- **Developer Personality**: Fun personality badge based on your activity
-- **Top Repositories**: Bar chart of your most active repos with medals
-- **Monthly Contributions**: See which month you were most productive
-- **Activity Heatmaps**: When do you code? Day of week and time of day analysis
-- **Language Breakdown**: What programming languages did you use?
-- **Fun Facts**: Entertaining stats about your coding year
+- **Lifetime Stats** — Repos, stars, followers, forks, commits, PRs, issues (via GitHub REST + Search APIs)
+- **Streak Tracking** — Longest & current daily streaks (via contribution calendar)
+- **Developer Personality** — Fun badge based on your activity patterns
+- **Peak Coding Time** — Night owl? Early bird? We'll tell you
+- **Top Repositories** — Bar chart of your most active repos
+- **Monthly Activity** — See which months you were most productive
+- **Heatmaps** — Day-of-week and time-of-day activity breakdowns
+- **Language Breakdown** — Your top programming languages with color-coded bar
+- **Fun Facts** — Bugs squashed, lines of code, cups of coffee
+- **Download PNG** — High-res 2× retina card screenshot
+- **Share on LinkedIn** — One-click share with auto-generated post text + image
 
-## Setup
+## How It Works
 
-### Prerequisites
+Everything runs **client-side** in the browser — no backend, no API tokens needed.
 
-- Python 3.8+
-- [Quarto CLI](https://quarto.org/docs/get-started/)
-  ```bash
-  # macOS
-  brew install quarto
-  
-  # Or download from https://quarto.org/docs/get-started/
-  ```
-- GitHub Personal Access Token
+| Data | Source |
+|------|--------|
+| Profile, repos, stars, forks | GitHub REST API |
+| Lifetime PRs & issues | GitHub Search API |
+| Lifetime commits per repo | GitHub Contributors Stats API |
+| Daily contribution streaks | [github-contributions-api.jogruber.de](https://github-contributions-api.jogruber.de) |
+| Activity patterns (charts) | GitHub Events API (recent ~300 events) |
 
-### Installation
+## Tech Stack
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/isfarbaset/github-insights.git
-   cd github-insights
-   ```
+- **HTML / CSS / JS** — No frameworks, no build step
+- **html2canvas** — PNG screenshot generation
+- **Web Share API** — Native sharing on supported devices
+- **GitHub Pages** — Static hosting
 
-2. Install Python dependencies:
-   ```bash
-   pip install requests
-   ```
-
-3. Create a GitHub Personal Access Token:
-   - Go to GitHub → Settings → Developer Settings → Personal Access Tokens → [Tokens (classic)](https://github.com/settings/tokens)
-   - Click "Generate new token (classic)"
-   - Select scopes: `public_repo` and `read:user`
-   - Copy the token
-
-4. Edit `index.qmd` and change the `GITHUB_USERNAME` variable (line 21) to your GitHub username:
-   ```python
-   GITHUB_USERNAME = "your_username_here"
-   ```
-
-### Render
-
-To generate your GitHub Insights report:
+## Run Locally
 
 ```bash
-GITHUB_TOKEN="your_token_here" quarto render
+git clone https://github.com/isfarbaset/github-insights.git
+cd github-insights
+python3 -m http.server 8090
+# Open http://localhost:8090
 ```
 
-The output will be in the `docs/` folder, ready for GitHub Pages.
+## Deploy
 
-### Deploy to GitHub Pages
+The site is served from the `docs/` folder via GitHub Pages.
 
-1. Push the `docs/` folder to your repository
-2. Go to your repo Settings > Pages
-3. Set source to "Deploy from a branch" and select `main` branch, `/docs` folder
-4. Your GitHub Insights will be live at `https://yourusername.github.io/github-insights/`
+To update the deployed version after making changes:
 
-## Customization
-
-### Change the Year
-
-Edit the `YEAR` variable in `index.qmd`:
-```python
-YEAR = 2025
-```
-
-### Styling
-
-Modify `styles.css` to customize colors, fonts, and layout. The main GitHub color variables:
-
-```css
-:root {
-  --gh-dark: #0d1117;
-  --gh-green: #238636;
-  --gh-blue: #58a6ff;
-  --gh-purple: #a371f7;
-  --gh-orange: #d29922;
-}
+```bash
+cp index.html card.css card.js docs/
+git add -A && git commit -m "Update site" && git push
 ```
 
 ## API Rate Limits
 
-Without authentication, GitHub API allows 60 requests per hour. With a personal access token, you get 5,000 requests per hour. The GraphQL API (used for accurate contribution data) requires authentication.
+Without authentication, GitHub allows **60 requests/hour** per IP. For users with many repos, you may occasionally hit limits — just wait a minute and try again.
 
 ## Privacy
 
-This project only accesses public GitHub data. Your personal access token is only stored locally and never transmitted to any third party.
+This project only accesses **public** GitHub data. Nothing is stored, tracked, or sent to any server. Everything runs in your browser.
 
 ## License
 
-MIT License - feel free to use, modify, and share!
+MIT — feel free to use, modify, and share!
