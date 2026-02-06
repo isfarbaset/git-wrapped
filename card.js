@@ -86,7 +86,17 @@ function getCached(username) {
 
 function setCache(username, data) {
   try {
-    localStorage.setItem(`ghi_cache_${username.toLowerCase()}`, JSON.stringify({ ts: Date.now(), data }));
+    // Convert Sets to arrays for JSON serialization
+    const serializable = {
+      user: data.user,
+      repos: data.repos,
+      stats: {
+        ...data.stats,
+        activeDates: [...(data.stats.activeDates || [])],
+        reposContributed: [...(data.stats.reposContributed || [])],
+      },
+    };
+    localStorage.setItem(`ghi_cache_${username.toLowerCase()}`, JSON.stringify({ ts: Date.now(), data: serializable }));
   } catch { /* storage full, ignore */ }
 }
 
@@ -175,12 +185,15 @@ async function fetchWithRetry(url, retries = 2) {
 }
 
 async function fetchAllRepos(username) {
-  let repos = [], page = 1;
+  let repos = [], page = 1, firstPage = true;
   while (true) {
     const batch = await fetchJSON(
       `${API}/users/${username}/repos?per_page=100&page=${page}&type=owner&sort=updated`
     );
-    if (!batch || !Array.isArray(batch)) break; // rate limited or error
+    if (!batch || !Array.isArray(batch)) {
+      return firstPage ? null : repos; // null = total failure; partial = return what we got
+    }
+    firstPage = false;
     repos = repos.concat(batch);
     if (batch.length < 100) break;
     page++;
@@ -189,17 +202,23 @@ async function fetchAllRepos(username) {
 }
 
 async function fetchEvents(username) {
-  let events = [];
+  let events = [], firstPage = true;
   const maxPages = getToken() ? 10 : 1;
   for (let page = 1; page <= maxPages; page++) {
     try {
       const batch = await fetchJSON(
         `${API}/users/${username}/events/public?per_page=100&page=${page}`
       );
-      if (!batch || !Array.isArray(batch) || !batch.length) break;
+      if (!batch || !Array.isArray(batch)) {
+        return firstPage ? null : events; // null = total failure
+      }
+      firstPage = false;
+      if (!batch.length) break;
       events = events.concat(batch);
       if (batch.length < 100) break;
-    } catch { break; }
+    } catch {
+      return firstPage ? null : events;
+    }
   }
   return events;
 }
@@ -222,12 +241,13 @@ async function fetchDailyContributions(username) {
 /* ── Lifetime data (Search API + Contributors API) ────── */
 
 async function fetchLifetimeData(username, repos) {
+  // null = "we don't know" (API failed or skipped); 0 = "genuinely zero"
   const lifetime = {
-    totalPRs: 0,
-    totalPRsMerged: 0,
-    totalIssues: 0,
-    totalIssuesClosed: 0,
-    totalCommits: 0,
+    totalPRs: null,
+    totalPRsMerged: null,
+    totalIssues: null,
+    totalIssuesClosed: null,
+    totalCommits: null,
     repoCommits: {},
   };
 
@@ -244,7 +264,7 @@ async function fetchLifetimeData(username, repos) {
       if (prMergedRes) lifetime.totalPRsMerged = prMergedRes.total_count || 0;
       if (issueRes) lifetime.totalIssues = issueRes.total_count || 0;
       if (issueClosedRes) lifetime.totalIssuesClosed = issueClosedRes.total_count || 0;
-    } catch { /* keep zeros on failure */ }
+    } catch { /* keep nulls on failure */ }
   }
 
   // Stats/Contributors API — lifetime commit totals + weekly history
@@ -254,6 +274,9 @@ async function fetchLifetimeData(username, repos) {
     .sort((a, b) => new Date(b.pushed_at || 0) - new Date(a.pushed_at || 0))
     .slice(0, getToken() ? 50 : 5);  // limit repos to reduce API calls without token
 
+  if (owned.length > 0) {
+    lifetime.totalCommits = 0; // We're going to try — start at 0, not null
+  }
   for (let i = 0; i < owned.length; i += 5) {
     const batch = owned.slice(i, i + 5);
     const results = await Promise.all(
@@ -277,8 +300,14 @@ async function fetchLifetimeData(username, repos) {
 /* ── Compute stats ─────────────────────────────────────── */
 
 function computeStats(events, repos, user, lifetime, dailyContribs) {
+  // null means "data unavailable" — distinguishes from a genuine 0
+  const reposFailed = repos === null;
+  const eventsFailed = events === null;
+  const safeRepos = repos || [];
+  const safeEvents = events || [];
+
   const stats = {
-    // Lifetime totals (from Search + Contributors APIs)
+    // Lifetime totals (from Search + Contributors APIs) — null = unavailable
     totalCommits: lifetime.totalCommits,
     totalPRs: lifetime.totalPRs,
     totalPRsMerged: lifetime.totalPRsMerged,
@@ -293,17 +322,21 @@ function computeStats(events, repos, user, lifetime, dailyContribs) {
     reposContributed: new Set(),
     longestStreak: 0,
     currentStreak: 0,
-    // From repos API (lifetime)
-    starsReceived: 0,
-    forksReceived: 0,
+    // From repos API (lifetime) — null if repos API failed
+    starsReceived: reposFailed ? null : 0,
+    forksReceived: reposFailed ? null : 0,
     // From user API (lifetime)
     publicRepos: user.public_repos || 0,
     followers: user.followers || 0,
     following: user.following || 0,
+    // Track what data is incomplete
+    _reposFailed: reposFailed,
+    _eventsFailed: eventsFailed,
+    _partial: reposFailed || eventsFailed,
   };
 
   // ── Stars & forks from owned repos ──
-  for (const r of repos) {
+  for (const r of safeRepos) {
     if (!r.fork) {
       stats.starsReceived += r.stargazers_count || 0;
       stats.forksReceived += r.forks_count || 0;
@@ -314,7 +347,7 @@ function computeStats(events, repos, user, lifetime, dailyContribs) {
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  for (const ev of events) {
+  for (const ev of safeEvents) {
     const d = new Date(ev.created_at);
     const dateKey = d.toISOString().slice(0, 10);
     const dayName = dayNames[d.getUTCDay()];
@@ -387,10 +420,17 @@ function computeStats(events, repos, user, lifetime, dailyContribs) {
     stats.currentStreak = curStreak;
   }
 
-  stats.totalContributions = stats.totalCommits + stats.totalPRs + stats.totalIssues;
-  // Use calendar total as fallback if API-derived total is 0
-  if (!stats.totalContributions && stats.lifetimeContributions) {
+  // Total contributions: use calendar total (most reliable), fall back to summing API values
+  if (stats.lifetimeContributions) {
     stats.totalContributions = stats.lifetimeContributions;
+  } else {
+    // Only sum values we actually have (not null)
+    const c = stats.totalCommits, p = stats.totalPRs, i = stats.totalIssues;
+    if (c !== null || p !== null || i !== null) {
+      stats.totalContributions = (c || 0) + (p || 0) + (i || 0);
+    } else {
+      stats.totalContributions = null; // all unknown
+    }
   }
 
   return stats;
@@ -399,19 +439,27 @@ function computeStats(events, repos, user, lifetime, dailyContribs) {
 /* ── Developer personality (same thresholds as original) ─ */
 
 function getPersonality(stats, langCount) {
-  if (stats.totalCommits > 500)
+  // Use || 0 so null doesn't pass > comparisons (null > 500 is false anyway in JS,
+  // but be explicit for clarity)
+  const commits = stats.totalCommits || 0;
+  const prs = stats.totalPRs || 0;
+  const issues = stats.totalIssues || 0;
+  const stars = stats.starsReceived || 0;
+  const contribs = stats.totalContributions || 0;
+
+  if (commits > 500)
     return { emoji: "🚀", title: "CODE MACHINE", sub: "Ships code like there's no tomorrow" };
-  if (stats.totalPRs > 50)
+  if (prs > 50)
     return { emoji: "🤝", title: "COLLABORATION KING", sub: "All about teamwork and code reviews" };
-  if (stats.totalIssues > 30)
+  if (issues > 30)
     return { emoji: "🐛", title: "BUG HUNTER", sub: "No bug is safe when you're around" };
   if (stats.longestStreak > 30)
     return { emoji: "🔥", title: "STREAK MASTER", sub: "Consistency is your middle name" };
   if (langCount > 5)
     return { emoji: "🎨", title: "POLYGLOT DEV", sub: "Speaks many programming languages" };
-  if (stats.starsReceived > 100)
+  if (stars > 100)
     return { emoji: "⭐", title: "STAR COLLECTOR", sub: "Your repos shine bright like diamonds" };
-  if (stats.totalContributions > 200)
+  if (contribs > 200)
     return { emoji: "💪", title: "DEDICATED DEV", sub: "Puts in the work, day after day" };
   return { emoji: "🌱", title: "GROWING DEV", sub: "Every commit is a step forward" };
 }
@@ -458,7 +506,14 @@ function computeLanguages(repos) {
 
 /* ── Render the full card ──────────────────────────────── */
 
+/** Format a number, or return '—' if data is unavailable (null) */
+function fmtSafe(v) {
+  return v === null || v === undefined ? "—" : fmt(v);
+}
+
 function renderCard(user, repos, stats) {
+  const safeRepos = repos || [];
+
   // ── Card ──
   // Header
   $("#card-avatar").src = user.avatar_url;
@@ -468,25 +523,25 @@ function renderCard(user, repos, stats) {
   $("#card-bio").style.display = user.bio ? "" : "none";
 
   // Primary stats row: Repos, Stars, Followers, Forks
-  $("#card-repos").textContent = fmt(stats.publicRepos);
-  $("#card-stars").textContent = fmt(stats.starsReceived);
-  $("#card-followers").textContent = fmt(stats.followers);
-  $("#card-forks").textContent = fmt(stats.forksReceived);
+  $("#card-repos").textContent = fmtSafe(stats.publicRepos);
+  $("#card-stars").textContent = fmtSafe(stats.starsReceived);
+  $("#card-followers").textContent = fmtSafe(stats.followers);
+  $("#card-forks").textContent = fmtSafe(stats.forksReceived);
 
   // Streaks (lifetime, daily granularity)
   $("#card-longest-streak").textContent = stats.longestStreak + (stats.longestStreak === 1 ? " day" : " days");
   $("#card-current-streak").textContent = stats.currentStreak + (stats.currentStreak === 1 ? " day" : " days");
 
   // Activity stats row: Contributions, Commits, PRs, Issues + secondary
-  $("#card-total-contributions").textContent = fmt(stats.totalContributions);
-  $("#card-commits").textContent = fmt(stats.totalCommits);
-  $("#card-prs").textContent = fmt(stats.totalPRs);
-  $("#card-issues").textContent = fmt(stats.totalIssues);
-  $("#card-prs-merged").textContent = fmt(stats.totalPRsMerged);
-  $("#card-issues-closed").textContent = fmt(stats.totalIssuesClosed);
+  $("#card-total-contributions").textContent = fmtSafe(stats.totalContributions);
+  $("#card-commits").textContent = fmtSafe(stats.totalCommits);
+  $("#card-prs").textContent = fmtSafe(stats.totalPRs);
+  $("#card-issues").textContent = fmtSafe(stats.totalIssues);
+  $("#card-prs-merged").textContent = fmtSafe(stats.totalPRsMerged);
+  $("#card-issues-closed").textContent = fmtSafe(stats.totalIssuesClosed);
 
   // Personality
-  const langs = computeLanguages(repos);
+  const langs = computeLanguages(safeRepos);
   const personality = getPersonality(stats, langs.length);
   $("#personality-emoji").textContent = personality.emoji;
   $("#personality-title").textContent = personality.title;
@@ -665,16 +720,20 @@ function renderCard(user, repos, stats) {
   const funEl = $("#card-fun-facts");
   // Use the reliable daily-calendar lifetime total; fall back to API commits
   const activityCount = stats.lifetimeContributions || stats.totalCommits || stats.totalContributions;
-  const linesEstimate = activityCount * 50;
-  const bugsSquashed = activityCount * 3 + stats.totalIssuesClosed * 10;
-  const coffees = activityCount * 2;
-  funEl.innerHTML = `
-    <div class="ff-row">🪲 Squashed ~<b>${bugsSquashed.toLocaleString()}</b> bugs</div>
-    <div class="ff-row">⭐ Collected <b>${stats.starsReceived.toLocaleString()}</b> stars</div>
-    <div class="ff-row">🍴 Forked <b>${stats.forksReceived.toLocaleString()}</b> times</div>
-    <div class="ff-row">📝 Wrote ~<b>${linesEstimate.toLocaleString()}</b> lines of code</div>
-    <div class="ff-row">☕ ~<b>${coffees.toLocaleString()}</b> cups of coffee worth of coding</div>
-  `;
+  if (activityCount && activityCount > 0) {
+    const linesEstimate = activityCount * 50;
+    const bugsSquashed = activityCount * 3 + (stats.totalIssuesClosed || 0) * 10;
+    const coffees = activityCount * 2;
+    funEl.innerHTML = `
+      <div class="ff-row">🪲 Squashed ~<b>${bugsSquashed.toLocaleString()}</b> bugs</div>
+      <div class="ff-row">⭐ Collected <b>${(stats.starsReceived ?? 0).toLocaleString()}</b> stars</div>
+      <div class="ff-row">🍴 Forked <b>${(stats.forksReceived ?? 0).toLocaleString()}</b> times</div>
+      <div class="ff-row">📝 Wrote ~<b>${linesEstimate.toLocaleString()}</b> lines of code</div>
+      <div class="ff-row">☕ ~<b>${coffees.toLocaleString()}</b> cups of coffee worth of coding</div>
+    `;
+  } else {
+    funEl.innerHTML = '<div class="ff-row" style="color:var(--gh-text-muted)">Not enough data to compute fun facts</div>';
+  }
 
   // ── Details ──
   const setDetail = (id, text) => {
@@ -741,9 +800,10 @@ form.addEventListener("submit", async (e) => {
         return;
       }
       const user = await userRes.json();
-      const emptyLifetime = { totalPRs: 0, totalPRsMerged: 0, totalIssues: 0, totalIssuesClosed: 0, totalCommits: 0, repoCommits: {} };
-      const stats = computeStats([], [], user, emptyLifetime, dailyContribs);
-      renderCard(user, [], stats);
+      // null = unavailable (not fake zeros)
+      const emptyLifetime = { totalPRs: null, totalPRsMerged: null, totalIssues: null, totalIssuesClosed: null, totalCommits: null, repoCommits: {} };
+      const stats = computeStats(null, null, user, emptyLifetime, dailyContribs);
+      renderCard(user, null, stats);
       placeholder.hidden = true;
       cardWrapper.hidden = false;
       cardActions.hidden = false;
@@ -754,22 +814,28 @@ form.addEventListener("submit", async (e) => {
     // 3. Full fetch (user endpoint uses strict version — must succeed)
     const user = await fetchJSONStrict(`${API}/users/${username}`);
 
-    // Other endpoints degrade gracefully
+    // Other endpoints degrade gracefully (return null on failure)
     const [repos, events, dailyContribs] = await Promise.all([
       fetchAllRepos(username),
       fetchEvents(username),
       fetchDailyContributions(username),
     ]);
-    const lifetime = await fetchLifetimeData(username, repos);
+    const lifetime = await fetchLifetimeData(username, repos || []);
     const stats = computeStats(events, repos, user, lifetime, dailyContribs);
     renderCard(user, repos, stats);
 
-    // Cache the result
-    setCache(username, { user, repos, stats });
+    // Only cache complete results — never cache partial/degraded data
+    if (!stats._partial) {
+      setCache(username, { user, repos, stats });
+    }
 
     placeholder.hidden = true;
     cardWrapper.hidden = false;
     cardActions.hidden = false;
+
+    if (stats._partial) {
+      showToast("⚠️ Some data unavailable due to rate limits. Add a token for full stats.");
+    }
   } catch (err) {
     showError(err.message || "Something went wrong. Please try again.");
   } finally {
