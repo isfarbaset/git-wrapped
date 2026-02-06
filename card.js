@@ -32,6 +32,40 @@ const downloadBtn = $("#download-btn");
 const cardActions = $("#card-actions");
 const placeholder = $("#card-placeholder");
 const cardWrapper = $("#card-wrapper");
+const tokenInput  = $("#token-input");
+const tokenToggle = $("#token-toggle");
+const tokenArea   = $("#token-area");
+
+/* ── Token management ──────────────────────────────────── */
+
+function getToken() {
+  return tokenInput.value.trim() || localStorage.getItem("gh_token") || "";
+}
+
+function getHeaders() {
+  const h = { Accept: "application/vnd.github.v3+json" };
+  const token = getToken();
+  if (token) h.Authorization = `token ${token}`;
+  return h;
+}
+
+// Persist token to localStorage when changed
+tokenInput.addEventListener("change", () => {
+  const t = tokenInput.value.trim();
+  if (t) localStorage.setItem("gh_token", t);
+  else localStorage.removeItem("gh_token");
+});
+
+// Restore saved token
+if (localStorage.getItem("gh_token")) {
+  tokenInput.value = localStorage.getItem("gh_token");
+}
+
+// Toggle token area visibility
+tokenToggle.addEventListener("click", () => {
+  tokenArea.hidden = !tokenArea.hidden;
+  if (!tokenArea.hidden) tokenInput.focus();
+});
 
 /* ── Helpers ───────────────────────────────────────────── */
 
@@ -66,10 +100,15 @@ function setLoading(on) {
 /* ── API ───────────────────────────────────────────────── */
 
 async function fetchJSON(url) {
-  const res = await fetch(url, { headers: { Accept: "application/vnd.github.v3+json" } });
+  const res = await fetch(url, { headers: getHeaders() });
   if (!res.ok) {
     if (res.status === 404) throw new Error("User not found");
-    if (res.status === 403) throw new Error("API rate limit exceeded — try again in a minute");
+    if (res.status === 403) {
+      const token = getToken();
+      throw new Error(token
+        ? "API rate limit exceeded even with token — try again shortly"
+        : "API rate limit exceeded — add a GitHub token below to fix this");
+    }
     throw new Error(`GitHub API error (${res.status})`);
   }
   return res.json();
@@ -78,7 +117,7 @@ async function fetchJSON(url) {
 /** Fetch with retry — handles 202 "computing" from stats endpoints */
 async function fetchWithRetry(url, retries = 2) {
   for (let i = 0; i <= retries; i++) {
-    const res = await fetch(url, { headers: { Accept: "application/vnd.github.v3+json" } });
+    const res = await fetch(url, { headers: getHeaders() });
     if (res.status === 200) return res.json();
     if (res.status === 202 && i < retries) {
       await new Promise(r => setTimeout(r, 1500));
@@ -105,7 +144,8 @@ async function fetchAllRepos(username) {
 
 async function fetchEvents(username) {
   let events = [];
-  for (let page = 1; page <= 10; page++) {
+  const maxPages = getToken() ? 10 : 3;
+  for (let page = 1; page <= maxPages; page++) {
     try {
       const batch = await fetchJSON(
         `${API}/users/${username}/events/public?per_page=100&page=${page}`
@@ -163,7 +203,8 @@ async function fetchLifetimeData(username, repos) {
   // This endpoint returns weekly commit data spanning each repo's full lifetime
   const owned = repos
     .filter(r => !r.fork)
-    .sort((a, b) => new Date(b.pushed_at || 0) - new Date(a.pushed_at || 0));
+    .sort((a, b) => new Date(b.pushed_at || 0) - new Date(a.pushed_at || 0))
+    .slice(0, getToken() ? 50 : 15);  // limit repos to reduce API calls without token
 
   for (let i = 0; i < owned.length; i += 5) {
     const batch = owned.slice(i, i + 5);
