@@ -35,11 +35,6 @@ const cardWrapper = $("#card-wrapper");
 const tokenInput  = $("#token-input");
 const tokenToggle = $("#token-toggle");
 const tokenArea   = $("#token-area");
-const yearSelector = $("#year-selector");
-const yearSelect   = $("#year-select");
-
-/* ── Global state (raw data for year re-rendering) ───── */
-let _rawData = null; // { username, user, repos, stats, lifetime, events, dailyContribs }
 
 /* ── Token management ──────────────────────────────────── */
 
@@ -100,9 +95,6 @@ function setCache(username, data) {
         activeDates: [...(data.stats.activeDates || [])],
         reposContributed: [...(data.stats.reposContributed || [])],
       },
-      dailyContribs: data.dailyContribs || null,
-      events: data.events || null,
-      lifetime: data.lifetime || null,
     };
     localStorage.setItem(`ghi_cache_${username.toLowerCase()}`, JSON.stringify({ ts: Date.now(), data: serializable }));
   } catch { /* storage full, ignore */ }
@@ -524,78 +516,6 @@ function computeLanguages(repos) {
     }));
 }
 
-/* ── Year selector logic ──────────────────────────────── */
-
-/** Extract available years from daily contributions */
-function getAvailableYears(dailyContribs) {
-  if (!dailyContribs || !dailyContribs.length) return [];
-  const years = new Set();
-  for (const d of dailyContribs) {
-    if (d.date) years.add(d.date.slice(0, 4));
-  }
-  return [...years].sort((a, b) => Number(b) - Number(a)); // newest first
-}
-
-/** Populate the year dropdown and show it */
-function populateYearSelector(dailyContribs) {
-  const years = getAvailableYears(dailyContribs);
-  yearSelect.innerHTML = '<option value="lifetime" selected>Lifetime (all years)</option>';
-  for (const y of years) {
-    const opt = document.createElement("option");
-    opt.value = y;
-    opt.textContent = y;
-    yearSelect.appendChild(opt);
-  }
-  yearSelector.hidden = false;
-}
-
-/** Filter daily contributions to a specific year */
-function filterContribsByYear(dailyContribs, year) {
-  if (!dailyContribs) return null;
-  if (year === "lifetime") return dailyContribs;
-  return dailyContribs.filter(d => d.date && d.date.startsWith(year));
-}
-
-/** Recompute stats for a specific year and re-render */
-function recomputeForYear(year) {
-  if (!_rawData) return;
-  const { user, repos, lifetime, events, dailyContribs } = _rawData;
-
-  const filteredContribs = filterContribsByYear(dailyContribs, year);
-
-  // For year view, use calendar data for monthly/daily charts instead of events
-  const useEvents = (year === "lifetime") ? events : null;
-
-  const stats = computeStats(useEvents, repos, user, lifetime, filteredContribs);
-
-  // For a specific year, also compute monthly/daily breakdowns from calendar
-  if (year !== "lifetime" && filteredContribs && filteredContribs.length) {
-    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-    // Reset chart data
-    stats.monthlyContributions = {};
-    stats.dailyContributions = {};
-    stats.hourlyContributions = {}; // no hourly data from calendar
-
-    for (const d of filteredContribs) {
-      if (!d.date || !d.count) continue;
-      const dt = new Date(d.date + "T12:00:00Z"); // noon UTC avoids timezone edge
-      const monthName = monthNames[dt.getUTCMonth()];
-      const dayName = dayNames[dt.getUTCDay()];
-      stats.monthlyContributions[monthName] = (stats.monthlyContributions[monthName] || 0) + d.count;
-      stats.dailyContributions[dayName] = (stats.dailyContributions[dayName] || 0) + d.count;
-    }
-  }
-
-  renderCard(user, repos, stats, year);
-}
-
-// Wire up year selector change
-yearSelect.addEventListener("change", (e) => {
-  recomputeForYear(e.target.value);
-});
-
 /* ── Render the full card ──────────────────────────────── */
 
 /** Format a number, or return '—' if data is unavailable (null) */
@@ -603,11 +523,8 @@ function fmtSafe(v) {
   return v === null || v === undefined ? "—" : fmt(v);
 }
 
-function renderCard(user, repos, stats, selectedYear) {
+function renderCard(user, repos, stats) {
   const safeRepos = repos || [];
-  const isYearView = selectedYear && selectedYear !== "lifetime";
-  const scopeLabel = isYearView ? `(${selectedYear})` : "";
-  const scopeLabelRecent = isYearView ? `(${selectedYear})` : "(recent)";
 
   // ── Card ──
   // Header
@@ -623,18 +540,17 @@ function renderCard(user, repos, stats, selectedYear) {
   $("#card-followers").textContent = fmtSafe(stats.followers);
   $("#card-forks").textContent = fmtSafe(stats.forksReceived);
 
-  // Streaks — scoped to selected year
+  // Streaks (lifetime, daily granularity)
   $("#card-longest-streak").textContent = stats.longestStreak + (stats.longestStreak === 1 ? " day" : " days");
   $("#card-current-streak").textContent = stats.currentStreak + (stats.currentStreak === 1 ? " day" : " days");
 
   // Activity stats row: Contributions, Commits, PRs, Issues + secondary
   $("#card-total-contributions").textContent = fmtSafe(stats.totalContributions);
-  // In year view: commits/PRs/issues are still lifetime (can't filter easily)
-  $("#card-commits").textContent = isYearView ? "—" : fmtSafe(stats.totalCommits);
-  $("#card-prs").textContent = isYearView ? "—" : fmtSafe(stats.totalPRs);
-  $("#card-issues").textContent = isYearView ? "—" : fmtSafe(stats.totalIssues);
-  $("#card-prs-merged").textContent = isYearView ? "—" : fmtSafe(stats.totalPRsMerged);
-  $("#card-issues-closed").textContent = isYearView ? "—" : fmtSafe(stats.totalIssuesClosed);
+  $("#card-commits").textContent = fmtSafe(stats.totalCommits);
+  $("#card-prs").textContent = fmtSafe(stats.totalPRs);
+  $("#card-issues").textContent = fmtSafe(stats.totalIssues);
+  $("#card-prs-merged").textContent = fmtSafe(stats.totalPRsMerged);
+  $("#card-issues-closed").textContent = fmtSafe(stats.totalIssuesClosed);
 
   // Personality
   const langs = computeLanguages(safeRepos);
@@ -696,10 +612,6 @@ function renderCard(user, repos, stats, selectedYear) {
   const peakMonthIdx = monthlyData.indexOf(Math.max(...monthlyData));
   monthlyChart.innerHTML = "";
 
-  // Update section note labels based on year scope
-  const monthlyNote = monthlySection.querySelector(".section-note");
-  if (monthlyNote) monthlyNote.textContent = scopeLabelRecent;
-
   if (monthlyData.some(v => v > 0)) {
     monthlySection.style.display = "";
     monthsOrder.forEach((m, i) => {
@@ -728,9 +640,6 @@ function renderCard(user, repos, stats, selectedYear) {
   const dailyData = daysOrder.map(d => stats.dailyContributions[d] || 0);
   const maxDaily = Math.max(...dailyData, 1);
   dayHeatmap.innerHTML = "";
-
-  const dailyNote = dailySection.querySelector(".section-note");
-  if (dailyNote) dailyNote.textContent = scopeLabelRecent;
 
   if (dailyData.some(v => v > 0)) {
     dailySection.style.display = "";
@@ -771,13 +680,7 @@ function renderCard(user, repos, stats, selectedYear) {
   const hourlyVals = timeLabels.map(t => t.hours.reduce((s, h) => s + (stats.hourlyContributions[h] || 0), 0));
   const maxHourly = Math.max(...hourlyVals, 1);
 
-  const hourlyNote = hourlySection.querySelector(".section-note");
-  if (hourlyNote) hourlyNote.textContent = scopeLabelRecent;
-
-  // Hide hourly in year view — calendar data has no hour info
-  if (isYearView) {
-    hourlySection.style.display = "none";
-  } else if (hourlyVals.some(v => v > 0)) {
+  if (hourlyVals.some(v => v > 0)) {
     hourlySection.style.display = "";
     const peakIdx = hourlyVals.indexOf(Math.max(...hourlyVals));
     timeLabels.forEach((t, i) => {
@@ -798,7 +701,7 @@ function renderCard(user, repos, stats, selectedYear) {
         </div>`;
     });
     $("#card-peak-hour").textContent = `You code most during the ${timeLabels[peakIdx].label.toLowerCase()}`;
-  } else if (!isYearView) {
+  } else {
     hourlySection.style.display = "none";
   }
 
@@ -839,8 +742,7 @@ function renderCard(user, repos, stats, selectedYear) {
   // Contributions total
   const contribTotal = stats.lifetimeContributions || stats.totalContributions;
   if (contribTotal && contribTotal > 0) {
-    const contribScope = isYearView ? `contributions in ${selectedYear}` : "lifetime contributions";
-    facts.push(`📊 <b>${contribTotal.toLocaleString()}</b> ${contribScope}`);
+    facts.push(`📊 <b>${contribTotal.toLocaleString()}</b> lifetime contributions`);
   }
 
   // Stars
@@ -907,33 +809,15 @@ form.addEventListener("submit", async (e) => {
   errorMsg.hidden = true;
   setLoading(true);
   try {
-    // Reset year selector on new generation
-    yearSelect.value = "lifetime";
-
     // 1. Check cache first
     const cached = getCached(username);
     if (cached) {
-      // If cache is from before the year-selector update (missing dailyContribs),
-      // discard it so we do a fresh fetch with all fields
-      if (!cached.dailyContribs) {
-        localStorage.removeItem(`ghi_cache_${username.toLowerCase()}`);
-      } else {
-        // Restore raw data so year selector works
-        _rawData = {
-          user: cached.user,
-          repos: cached.repos,
-          lifetime: cached.lifetime || { totalPRs: null, totalPRsMerged: null, totalIssues: null, totalIssuesClosed: null, totalCommits: null, repoCommits: {} },
-          events: cached.events || null,
-          dailyContribs: cached.dailyContribs,
-        };
-        renderCard(cached.user, cached.repos, cached.stats);
-        populateYearSelector(cached.dailyContribs);
-        placeholder.hidden = true;
-        cardWrapper.hidden = false;
-        cardActions.hidden = false;
-        showToast("⚡ Loaded from cache (refreshes every hour)");
-        return;
-      }
+      renderCard(cached.user, cached.repos, cached.stats);
+      placeholder.hidden = true;
+      cardWrapper.hidden = false;
+      cardActions.hidden = false;
+      showToast("⚡ Loaded from cache (refreshes every hour)");
+      return;
     }
 
     // 2. Pre-check rate limit (free call)
@@ -955,9 +839,7 @@ form.addEventListener("submit", async (e) => {
       // null = unavailable (not fake zeros)
       const emptyLifetime = { totalPRs: null, totalPRsMerged: null, totalIssues: null, totalIssuesClosed: null, totalCommits: null, repoCommits: {} };
       const stats = computeStats(null, null, user, emptyLifetime, dailyContribs);
-      _rawData = { user, repos: null, lifetime: emptyLifetime, events: null, dailyContribs };
       renderCard(user, null, stats);
-      populateYearSelector(dailyContribs);
       placeholder.hidden = true;
       cardWrapper.hidden = false;
       cardActions.hidden = false;
@@ -976,16 +858,12 @@ form.addEventListener("submit", async (e) => {
     ]);
     const lifetime = await fetchLifetimeData(username, repos || []);
     const stats = computeStats(events, repos, user, lifetime, dailyContribs);
-    _rawData = { user, repos, lifetime, events, dailyContribs };
     renderCard(user, repos, stats);
 
     // Only cache complete results — never cache partial/degraded data
     if (!stats._partial) {
-      setCache(username, { user, repos, stats, dailyContribs, events, lifetime });
+      setCache(username, { user, repos, stats });
     }
-
-    if (dailyContribs) populateYearSelector(dailyContribs);
-    else yearSelector.hidden = true;
 
     placeholder.hidden = true;
     cardWrapper.hidden = false;
