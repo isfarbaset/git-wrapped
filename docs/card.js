@@ -251,21 +251,21 @@ async function fetchLifetimeData(username, repos) {
     repoCommits: {},
   };
 
-  // Search API — lifetime PR & Issue counts (only with token to save API calls)
-  if (getToken()) {
-    try {
-      const [prRes, prMergedRes, issueRes, issueClosedRes] = await Promise.all([
-        fetchJSON(`${API}/search/issues?q=author:${username}+type:pr+is:public&per_page=1`).catch(() => null),
-        fetchJSON(`${API}/search/issues?q=author:${username}+type:pr+is:merged+is:public&per_page=1`).catch(() => null),
-        fetchJSON(`${API}/search/issues?q=author:${username}+type:issue+is:public&per_page=1`).catch(() => null),
-        fetchJSON(`${API}/search/issues?q=author:${username}+type:issue+is:closed+is:public&per_page=1`).catch(() => null),
-      ]);
-      if (prRes) lifetime.totalPRs = prRes.total_count || 0;
-      if (prMergedRes) lifetime.totalPRsMerged = prMergedRes.total_count || 0;
-      if (issueRes) lifetime.totalIssues = issueRes.total_count || 0;
-      if (issueClosedRes) lifetime.totalIssuesClosed = issueClosedRes.total_count || 0;
-    } catch { /* keep nulls on failure */ }
-  }
+  // Search API — lifetime PR & Issue counts
+  // The Search API has its own rate limit (10 req/min unauthenticated)
+  // separate from the core REST API, so this is safe without a token
+  try {
+    const [prRes, prMergedRes, issueRes, issueClosedRes] = await Promise.all([
+      fetchJSON(`${API}/search/issues?q=author:${username}+type:pr+is:public&per_page=1`).catch(() => null),
+      fetchJSON(`${API}/search/issues?q=author:${username}+type:pr+is:merged+is:public&per_page=1`).catch(() => null),
+      fetchJSON(`${API}/search/issues?q=author:${username}+type:issue+is:public&per_page=1`).catch(() => null),
+      fetchJSON(`${API}/search/issues?q=author:${username}+type:issue+is:closed+is:public&per_page=1`).catch(() => null),
+    ]);
+    if (prRes) lifetime.totalPRs = prRes.total_count || 0;
+    if (prMergedRes) lifetime.totalPRsMerged = prMergedRes.total_count || 0;
+    if (issueRes) lifetime.totalIssues = issueRes.total_count || 0;
+    if (issueClosedRes) lifetime.totalIssuesClosed = issueClosedRes.total_count || 0;
+  } catch { /* keep nulls on failure */ }
 
   // Stats/Contributors API — lifetime commit totals + weekly history
   // This endpoint returns weekly commit data spanning each repo's full lifetime
@@ -274,10 +274,6 @@ async function fetchLifetimeData(username, repos) {
   const owned = allOwned
     .sort((a, b) => new Date(b.pushed_at || 0) - new Date(a.pushed_at || 0))
     .slice(0, repoLimit);
-
-  // Only report commit totals if we checked ALL owned repos
-  // Otherwise the number is misleadingly low
-  const checkedAllRepos = allOwned.length <= repoLimit;
 
   if (owned.length > 0) {
     lifetime.totalCommits = 0; // We're going to try — start at 0, not null
@@ -297,13 +293,6 @@ async function fetchLifetimeData(username, repos) {
         lifetime.totalCommits += me.total || 0;
       }
     }
-  }
-
-  // If we couldn't check all repos, the commit total is incomplete
-  // Keep repoCommits (for the top repos chart) but null out the total
-  // so we don't display a misleadingly low number
-  if (!checkedAllRepos && lifetime.totalCommits !== null) {
-    lifetime.totalCommits = null;
   }
 
   return lifetime;
