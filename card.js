@@ -170,12 +170,12 @@ async function checkRateLimit() {
 }
 
 /** Fetch with retry — handles 202 "computing" from stats endpoints */
-async function fetchWithRetry(url, retries = 2) {
+async function fetchWithRetry(url, retries = 5) {
   for (let i = 0; i <= retries; i++) {
     const res = await fetch(url, { headers: getHeaders() });
     if (res.status === 200) return res.json();
     if (res.status === 202 && i < retries) {
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 2000));
       continue;
     }
     if (res.status === 204 || res.status === 403 || res.status === 404) return [];
@@ -278,6 +278,7 @@ async function fetchLifetimeData(username, repos) {
   if (owned.length > 0) {
     lifetime.totalCommits = 0; // We're going to try — start at 0, not null
   }
+  let reposWithData = 0;
   for (let i = 0; i < owned.length; i += 5) {
     const batch = owned.slice(i, i + 5);
     const results = await Promise.all(
@@ -287,12 +288,19 @@ async function fetchLifetimeData(username, repos) {
     );
     for (let j = 0; j < batch.length; j++) {
       const contributors = Array.isArray(results[j]) ? results[j] : [];
+      if (contributors.length > 0) reposWithData++;
       const me = contributors.find(c => c.author?.login?.toLowerCase() === username.toLowerCase());
       if (me) {
         lifetime.repoCommits[batch[j].name] = me.total || 0;
         lifetime.totalCommits += me.total || 0;
       }
     }
+  }
+
+  // If we had repos but NONE returned contributor data, the API
+  // was probably still computing (202s). Treat as unavailable, not 0.
+  if (owned.length > 0 && reposWithData === 0) {
+    lifetime.totalCommits = null;
   }
 
   return lifetime;
