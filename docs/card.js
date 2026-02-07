@@ -551,7 +551,6 @@ function renderCard(user, repos, stats) {
     el.closest(".activity-stat").style.display = (val === null || val === undefined || val === 0) ? "none" : "";
   };
   setActivity("#card-total-contributions", stats.totalContributions);
-  setActivity("#card-commits", stats.totalCommits);
   setActivity("#card-prs", stats.totalPRs);
   setActivity("#card-issues", stats.totalIssues);
   setActivity("#card-prs-merged", stats.totalPRsMerged);
