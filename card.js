@@ -913,22 +913,27 @@ form.addEventListener("submit", async (e) => {
     // 1. Check cache first
     const cached = getCached(username);
     if (cached) {
-      // Restore raw data so year selector works
-      _rawData = {
-        user: cached.user,
-        repos: cached.repos,
-        lifetime: cached.lifetime || { totalPRs: null, totalPRsMerged: null, totalIssues: null, totalIssuesClosed: null, totalCommits: null, repoCommits: {} },
-        events: cached.events || null,
-        dailyContribs: cached.dailyContribs || null,
-      };
-      renderCard(cached.user, cached.repos, cached.stats);
-      if (cached.dailyContribs) populateYearSelector(cached.dailyContribs);
-      else yearSelector.hidden = true;
-      placeholder.hidden = true;
-      cardWrapper.hidden = false;
-      cardActions.hidden = false;
-      showToast("⚡ Loaded from cache (refreshes every hour)");
-      return;
+      // If cache is from before the year-selector update (missing dailyContribs),
+      // discard it so we do a fresh fetch with all fields
+      if (!cached.dailyContribs) {
+        localStorage.removeItem(`ghi_cache_${username.toLowerCase()}`);
+      } else {
+        // Restore raw data so year selector works
+        _rawData = {
+          user: cached.user,
+          repos: cached.repos,
+          lifetime: cached.lifetime || { totalPRs: null, totalPRsMerged: null, totalIssues: null, totalIssuesClosed: null, totalCommits: null, repoCommits: {} },
+          events: cached.events || null,
+          dailyContribs: cached.dailyContribs,
+        };
+        renderCard(cached.user, cached.repos, cached.stats);
+        populateYearSelector(cached.dailyContribs);
+        placeholder.hidden = true;
+        cardWrapper.hidden = false;
+        cardActions.hidden = false;
+        showToast("⚡ Loaded from cache (refreshes every hour)");
+        return;
+      }
     }
 
     // 2. Pre-check rate limit (free call)
