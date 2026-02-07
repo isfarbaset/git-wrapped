@@ -269,10 +269,15 @@ async function fetchLifetimeData(username, repos) {
 
   // Stats/Contributors API — lifetime commit totals + weekly history
   // This endpoint returns weekly commit data spanning each repo's full lifetime
-  const owned = repos
-    .filter(r => !r.fork)
+  const allOwned = repos.filter(r => !r.fork);
+  const repoLimit = getToken() ? 50 : 5;
+  const owned = allOwned
     .sort((a, b) => new Date(b.pushed_at || 0) - new Date(a.pushed_at || 0))
-    .slice(0, getToken() ? 50 : 5);  // limit repos to reduce API calls without token
+    .slice(0, repoLimit);
+
+  // Only report commit totals if we checked ALL owned repos
+  // Otherwise the number is misleadingly low
+  const checkedAllRepos = allOwned.length <= repoLimit;
 
   if (owned.length > 0) {
     lifetime.totalCommits = 0; // We're going to try — start at 0, not null
@@ -292,6 +297,13 @@ async function fetchLifetimeData(username, repos) {
         lifetime.totalCommits += me.total || 0;
       }
     }
+  }
+
+  // If we couldn't check all repos, the commit total is incomplete
+  // Keep repoCommits (for the top repos chart) but null out the total
+  // so we don't display a misleadingly low number
+  if (!checkedAllRepos && lifetime.totalCommits !== null) {
+    lifetime.totalCommits = null;
   }
 
   return lifetime;
@@ -716,23 +728,47 @@ function renderCard(user, repos, stats) {
     }
   }
 
-  // ── Fun facts ──
+  // ── Fun facts (real data only — no made-up multipliers) ──
   const funEl = $("#card-fun-facts");
-  // Use the reliable daily-calendar lifetime total; fall back to API commits
-  const activityCount = stats.lifetimeContributions || stats.totalCommits || stats.totalContributions;
-  if (activityCount && activityCount > 0) {
-    const linesEstimate = activityCount * 50;
-    const bugsSquashed = activityCount * 3 + (stats.totalIssuesClosed || 0) * 10;
-    const coffees = activityCount * 2;
-    funEl.innerHTML = `
-      <div class="ff-row">🪲 Squashed ~<b>${bugsSquashed.toLocaleString()}</b> bugs</div>
-      <div class="ff-row">⭐ Collected <b>${(stats.starsReceived ?? 0).toLocaleString()}</b> stars</div>
-      <div class="ff-row">🍴 Forked <b>${(stats.forksReceived ?? 0).toLocaleString()}</b> times</div>
-      <div class="ff-row">📝 Wrote ~<b>${linesEstimate.toLocaleString()}</b> lines of code</div>
-      <div class="ff-row">☕ ~<b>${coffees.toLocaleString()}</b> cups of coffee worth of coding</div>
-    `;
+  const facts = [];
+
+  // Account age
+  if (user.created_at) {
+    const years = ((Date.now() - new Date(user.created_at)) / (365.25 * 24 * 60 * 60 * 1000));
+    if (years >= 1) facts.push(`📅 <b>${Math.floor(years)}</b> year${Math.floor(years) !== 1 ? 's' : ''} on GitHub`);
+    else facts.push(`📅 Joined GitHub <b>${Math.ceil(years * 12)}</b> month${Math.ceil(years * 12) !== 1 ? 's' : ''} ago`);
+  }
+
+  // Contributions total
+  const contribTotal = stats.lifetimeContributions || stats.totalContributions;
+  if (contribTotal && contribTotal > 0) {
+    facts.push(`📊 <b>${contribTotal.toLocaleString()}</b> lifetime contributions`);
+  }
+
+  // Stars
+  if (stats.starsReceived !== null && stats.starsReceived > 0) {
+    facts.push(`⭐ Collected <b>${stats.starsReceived.toLocaleString()}</b> star${stats.starsReceived !== 1 ? 's' : ''}`);
+  }
+
+  // Forks
+  if (stats.forksReceived !== null && stats.forksReceived > 0) {
+    facts.push(`🍴 Repos forked <b>${stats.forksReceived.toLocaleString()}</b> time${stats.forksReceived !== 1 ? 's' : ''}`);
+  }
+
+  // Longest streak
+  if (stats.longestStreak > 0) {
+    facts.push(`🔥 Longest streak: <b>${stats.longestStreak}</b> day${stats.longestStreak !== 1 ? 's' : ''}`);
+  }
+
+  // Languages count
+  if (langs.length > 0) {
+    facts.push(`🗂️ Codes in <b>${langs.length}</b> language${langs.length !== 1 ? 's' : ''}`);
+  }
+
+  if (facts.length) {
+    funEl.innerHTML = facts.map(f => `<div class="ff-row">${f}</div>`).join('');
   } else {
-    funEl.innerHTML = '<div class="ff-row" style="color:var(--gh-text-muted)">Not enough data to compute fun facts</div>';
+    funEl.innerHTML = '<div class="ff-row" style="color:var(--gh-text-muted)">Not enough data for fun facts</div>';
   }
 
   // ── Details ──
