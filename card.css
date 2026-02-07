@@ -1063,7 +1063,8 @@ body {
 
 @media (max-width: 740px) {
   :root { --card-pad: 1.25rem; }
-  .landing-title { font-size: 2.5rem; }
+  .landing-title { font-size: 2.5rem; letter-spacing: 4px; }
+  .landing-sub { font-size: .95rem; margin-bottom: 1.75rem; }
   .stats-card { width: 100%; }
   .card-stats { grid-template-columns: repeat(2, 1fr); }
   .card-activity-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1074,4 +1075,113 @@ body {
   .monthly-chart { height: 70px; }
   .panel-right { padding: 1.25rem; }
   .panel-left-inner { padding: 1.5rem 1.25rem; }
+
+  /* Let chip subtitles wrap on narrower screens */
+  .chip-sub { white-space: normal; }
+
+  /* Toast shouldn't overflow viewport */
+  .toast {
+    white-space: normal;
+    max-width: calc(100vw - 2rem);
+    text-align: center;
+    font-size: .8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  :root { --card-pad: 1rem; }
+  .landing-title { font-size: 2rem; letter-spacing: 3px; }
+  .landing-sub { font-size: .85rem; margin-bottom: 1.5rem; }
+  .logo-mark svg { width: 36px; height: 36px; }
+  .logo-mark { margin-bottom: 1rem; }
+
+  /* Input group — stack button below on very small screens */
+  .input-group {
+    flex-wrap: wrap;
+    border-radius: 12px;
+  }
+  .input-group input {
+    font-size: 1rem;
+    padding: .85rem .6rem;
+  }
+  .input-group button {
+    width: 100%;
+    justify-content: center;
+    padding: .85rem 1rem;
+    border-radius: 0 0 10px 10px;
+    font-size: .95rem;
+  }
+
+  /* Smaller avatar */
+  .card-avatar { width: 64px; height: 64px; }
+  .card-header { gap: 1rem; padding: 1.5rem var(--card-pad) 0; }
+  .card-name { font-size: 1.2rem; white-space: normal; }
+  .card-handle { font-size: .85rem; }
+  .card-bio { font-size: .8rem; }
+
+  /* Stats smaller text */
+  .stat-value { font-size: 1.4rem; }
+  .stat-label { font-size: .6rem; }
+  .card-stat { padding: .75rem .4rem; border-radius: 10px; }
+
+  /* Streaks */
+  .streak-value { font-size: 1.3rem; }
+  .streak-icon { font-size: 1.3rem; }
+  .streak-item { padding: .7rem .85rem; }
+
+  /* Activity */
+  .activity-value { font-size: 1.15rem; }
+  .activity-label { font-size: .6rem; }
+
+  /* Personality chips */
+  .chip-emoji { font-size: 1.4rem; }
+  .chip-title { font-size: .95rem; }
+  .chip-sub { font-size: .65rem; white-space: normal; }
+  .personality-chip { padding: .7rem .85rem; }
+
+  /* Top repo */
+  .top-repo-name { font-size: 1.05rem; }
+
+  /* Monthly chart - even smaller */
+  .monthly-chart { height: 56px; gap: 2px; }
+  .month-val { font-size: .5rem; }
+  .month-lbl { font-size: .5rem; }
+
+  /* Hourly heatmap — hide emoji to save space */
+  .hourly-emoji { display: none; }
+  .hourly-label { width: 56px; font-size: .6rem; }
+  .hourly-cell { font-size: .6rem; }
+
+  /* Day heatmap */
+  .day-label { width: 26px; font-size: .6rem; }
+  .day-cell { height: 24px; font-size: .6rem; }
+
+  /* Repo bars */
+  .repo-bar-name { font-size: .65rem; }
+  .repo-bar-fill { font-size: .55rem; padding-right: .35rem; }
+  .repo-bar-rank { width: 20px; height: 20px; font-size: .75rem; }
+
+  /* Fun facts */
+  .ff-row { font-size: .75rem; padding: .4rem .6rem; }
+
+  /* Details */
+  .card-details { gap: .4rem .85rem; }
+  .detail-item { font-size: .7rem; }
+
+  /* Section titles */
+  .card-section-title { font-size: .9rem; }
+
+  /* Buttons */
+  .download-btn, .linkedin-btn { font-size: .85rem; padding: .55rem 1rem; }
+
+  /* Panel padding */
+  .panel-left-inner { padding: 1.25rem 1rem; }
+  .panel-right { padding: 1rem; }
+
+  /* Language legend wrapping */
+  .lang-legend { gap: .4rem .6rem; }
+  .lang-legend-item { font-size: .65rem; }
+
+  /* Watermark */
+  .card-watermark { font-size: .6rem; }
 }
