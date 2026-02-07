@@ -379,6 +379,7 @@ function computeStats(events, repos, user, lifetime, dailyContribs) {
     if (ev.type === "PullRequestEvent") {
       stats.activeDates.add(dateKey);
       stats.monthlyContributions[monthName] = (stats.monthlyContributions[monthName] || 0) + 1;
+      stats.dailyContributions[dayName] = (stats.dailyContributions[dayName] || 0) + 1;
       stats.hourlyContributions[hour] = (stats.hourlyContributions[hour] || 0) + 1;
       const repo = (ev.repo && ev.repo.name) ? ev.repo.name.split("/").pop() : "";
       if (repo) stats.reposContributed.add(repo);
@@ -386,6 +387,7 @@ function computeStats(events, repos, user, lifetime, dailyContribs) {
     if (ev.type === "IssuesEvent") {
       stats.activeDates.add(dateKey);
       stats.monthlyContributions[monthName] = (stats.monthlyContributions[monthName] || 0) + 1;
+      stats.dailyContributions[dayName] = (stats.dailyContributions[dayName] || 0) + 1;
       stats.hourlyContributions[hour] = (stats.hourlyContributions[hour] || 0) + 1;
       const repo = (ev.repo && ev.repo.name) ? ev.repo.name.split("/").pop() : "";
       if (repo) stats.reposContributed.add(repo);
