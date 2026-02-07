@@ -536,12 +536,18 @@ function renderCard(user, repos, stats) {
   $("#card-current-streak").textContent = stats.currentStreak + (stats.currentStreak === 1 ? " day" : " days");
 
   // Activity stats row: Contributions, Commits, PRs, Issues + secondary
-  $("#card-total-contributions").textContent = fmtSafe(stats.totalContributions);
-  $("#card-commits").textContent = fmtSafe(stats.totalCommits);
-  $("#card-prs").textContent = fmtSafe(stats.totalPRs);
-  $("#card-issues").textContent = fmtSafe(stats.totalIssues);
-  $("#card-prs-merged").textContent = fmtSafe(stats.totalPRsMerged);
-  $("#card-issues-closed").textContent = fmtSafe(stats.totalIssuesClosed);
+  // Hide any stat that is 0 or unavailable
+  const setActivity = (sel, val) => {
+    const el = $(sel);
+    el.textContent = fmtSafe(val);
+    el.closest(".activity-stat").style.display = (val === null || val === undefined || val === 0) ? "none" : "";
+  };
+  setActivity("#card-total-contributions", stats.totalContributions);
+  setActivity("#card-commits", stats.totalCommits);
+  setActivity("#card-prs", stats.totalPRs);
+  setActivity("#card-issues", stats.totalIssues);
+  setActivity("#card-prs-merged", stats.totalPRsMerged);
+  setActivity("#card-issues-closed", stats.totalIssuesClosed);
 
   // Personality
   const langs = computeLanguages(safeRepos);
